@@ -48,8 +48,10 @@ USAGE:
 n=100 
 b=18
 m=2000
-I=0
+i=0
 v=""
+
+
 while getopts "a:t:p:r:o:n:b:m:s:v" options; do
         case "${options}" in
                 a)
@@ -384,9 +386,9 @@ function reads_extract(){
         echo Extracting n bases from fastq files | tee -a ${base_dir}/${o}.log
         echo | tee -a ${base_dir}/${o}.log
 	#Extracting first ${bases} bases from all reads
-	# NOTE @M04143: is replaced by ">". Modify @M04143: as needed
+	# NOTE @M04143: is replaced by ">". Modify @M as needed
 	for f in `ls reads/*.gz | awk -F".fastq.gz" '{print $1}'`; do 
-		 echo  echo $f \; zcat ${f}.fastq.gz \|  paste - - \| awk -v numbases=${bases} \'NR%2\{if \(/^@M04143:/\) sub\(\"@\",\"\>\"\)\; print \$1\"\\n\"substr\(\$NF,1,numbases\)\}\' \> ${f}_trimmed_${bases}nt.fasta 
+		 echo  echo $f \; zcat ${f}.fastq.gz \|  paste - - \| awk -v numbases=${bases} \'NR%2\{if \(/^@M/\) sub\(\"@\",\"\>\"\)\; print \$1\"\\n\"substr\(\$NF,1,numbases\)\}\' \> ${f}_trimmed_${bases}nt.fasta 
 	done > extracting_from_reads.sh
 	echo Extracting ${bases} bases from reads
 	parallel -j16 :::: extracting_from_reads.sh
@@ -503,6 +505,36 @@ echo "Q3 + ( 1.5 x IQR )"
 UP_BOUND=`awk -v a=$Q3 -v b=$IQR 'BEGIN{print a+(b*1.5)}'`
 echo $UP_BOUND
 cat ${1} | awk -v limit=$UP_BOUND '$1>limit{print $0}' > ../${1}_CANDIDATES_IQR.txt
+
+cd ../
+#Adding freq from _F and _R
+for f in `ls *_L001_R1_* | awk -F"_L001_R1_" '{print $1}'  `  ; do echo $f ; cat ${f}*txt  | awk '{print $1,substr($2,1,length($2)-1)}'  | awk '{ seen[$2] += $1 } END { for (i in seen) print i, seen[i] }' | sort -k2nr > ${f}_join_R1_R2_CANDIDATES_IQR.txt  ; done
+mkdir results_by_reads
+mv *blast_top_hits_counts.txt_CANDIDATES_IQR.txt results_by_reads/
+
+cd results_by_reads/
+
+
+# Just list of primers _F and _R
+for f in `ls *reads_to_primersDB_blast_top_hits_counts.txt_CANDIDATES_IQR.txt | awk -F".txt_CANDIDATES_IQR.txt" '{print $1}'` ; do cat  ${f}.txt_CANDIDATES_IQR.txt |  awk '{print $1,substr($2,1,length($2)-1)}' |  awk 'a[$2]++{print $2}' > ${f}_CANDIDATES_IQR_both_F_and_R_in_list.txt ; done
+
+# counts for F and R
+for f in `ls *reads_to_primersDB_blast_top_hits_counts.txt_CANDIDATES_IQR.txt | awk -F".txt_CANDIDATES_IQR.txt" '{print $1}'` ; do for g in `cat ${f}.txt_CANDIDATES_IQR.txt |  awk '{print $1,substr($2,1,length($2)-1)}' |  awk 'a[$2]++{print $2}' ` ; do grep ${g}[F,R] ${f}.txt_CANDIDATES_IQR.txt  ; done > ${f}_F_R.txt ; done
+
+
+# Adding _F and _R
+for f in `ls *_F_R.txt | awk -F. '{print $1}'`; do cat ${f}.txt | awk '{print $1,substr($2,1,length($2)-1)}'  | awk '{ seen[$2] += $1 } END { for (i in seen) print i, seen[i] }' |sort -k2rn > ${f}_sum.txt ; done
+
+mkdir ../primers_with_F_and_R_in_candidate_list
+mv *CANDIDATES_IQR_both_F_and_R_in_list.txt ../primers_with_F_and_R_in_candidate_list
+mv *_F_R.txt ../ 
+mv *_sum.txt ../
+
+
+
+
+
+
 }
 
 
